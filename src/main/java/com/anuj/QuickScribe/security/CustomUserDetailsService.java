@@ -21,9 +21,12 @@ public class CustomUserDetailsService implements UserDetailsService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
 
+        // For OAuth2-only accounts, use a special marker password that can never be matched
+        String password = user.hasLocalPassword() ? user.getPassword() : "{noop}OAUTH2_ONLY_ACCOUNT";
+
         return org.springframework.security.core.userdetails.User.builder()
                 .username(user.getEmail())
-                .password(user.getPassword())
+                .password(password)
                 .authorities(new ArrayList<>()) // Add roles/authorities here if needed
                 .accountExpired(false)
                 .accountLocked(false)

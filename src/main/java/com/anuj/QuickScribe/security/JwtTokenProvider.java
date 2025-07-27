@@ -17,13 +17,17 @@ import java.util.Date;
 @Slf4j
 public class JwtTokenProvider {
 
-    @Value("${app.jwt.secret:mySecretKey}")
+    @Value("${app.jwt.secret}")
     private String jwtSecret;
 
-    @Value("${app.jwt.expiration:86400}")
+    @Value("${app.jwt.expiration}")
     private int jwtExpirationInMs;
 
     private SecretKey getSigningKey() {
+        // Validate that the JWT secret is strong enough
+        if (jwtSecret == null || jwtSecret.length() < 32) {
+            throw new IllegalArgumentException("JWT secret must be at least 32 characters long for security");
+        }
         return Keys.hmacShaKeyFor(jwtSecret.getBytes());
     }
 

@@ -1,5 +1,6 @@
 package com.anuj.QuickScribe.security;
 
+import com.anuj.QuickScribe.exception.UserNotFoundException;
 import com.anuj.QuickScribe.model.AuthProvider;
 import com.anuj.QuickScribe.model.User;
 import com.anuj.QuickScribe.repository.UserRepository;
@@ -11,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
@@ -48,7 +50,8 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
     protected String determineTargetUrl(HttpServletRequest request, HttpServletResponse response,
                                       Authentication authentication) {
         try {
-            OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
+            OAuth2AuthenticationToken oauthToken = (OAuth2AuthenticationToken) authentication;
+            OAuth2User oAuth2User = oauthToken.getPrincipal();
             User user = processOAuth2User(oAuth2User);
 
             // Generate JWT tokens
@@ -97,7 +100,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
             user.setEmail(email);
             user.setName(name != null ? name : email.split("@")[0]);
             user.setProvider(AuthProvider.GOOGLE);
-            user.setPassword(""); // No password for OAuth2 users
+            user.setPassword(null); // Explicitly set to null for OAuth2-only accounts
             user.setEnabled(true);
             user = userRepository.save(user);
             log.info("New user created via Google OAuth2: {}", email);
