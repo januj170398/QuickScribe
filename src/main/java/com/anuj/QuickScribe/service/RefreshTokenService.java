@@ -13,6 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -39,10 +41,16 @@ public class RefreshTokenService {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new UserNotFoundException("User not found with email: " + userEmail));
 
+        // Security enhancement: Limit tokens per user (default max 5 devices)
+        cleanupOldTokensForUser(userEmail, 5);
+
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setUser(user);
         refreshToken.setExpiryDate(Instant.now().plusSeconds(refreshTokenDurationMs));
         refreshToken.setToken(UUID.randomUUID().toString());
+        refreshToken.setCreatedAt(Instant.now());
+        // TODO: Add device info from request headers if available
+        // refreshToken.setDeviceInfo(getDeviceInfoFromRequest());
 
         refreshToken = refreshTokenRepository.save(refreshToken);
         log.info("Created refresh token for user: {}", userEmail);
@@ -87,5 +95,60 @@ public class RefreshTokenService {
 
         refreshTokenRepository.deleteByUser(user);
         log.info("Deleted all refresh tokens for user: {}", userEmail);
+    }
+
+    @Transactional
+    public void deleteExpiredTokens() {
+        int deletedCount = refreshTokenRepository.deleteByExpiryDateBefore(Instant.now());
+        log.info("Cleaned up {} expired refresh tokens", deletedCount);
+    }
+
+    @Transactional
+    public void deleteByToken(String token) {
+        refreshTokenRepository.deleteByToken(token);
+        log.info("Deleted refresh token");
+    }
+
+    // Enhanced security: Limit number of refresh tokens per user
+    @Transactional
+    private void cleanupOldTokensForUser(String userEmail, int maxTokens) {
+        Optional<User> userOptional = userRepository.findByEmail(userEmail);
+        if (userOptional.isPresent()) {
+            User user = userOptional.get();
+            List<RefreshToken> userTokens = refreshTokenRepository.findByUser(user);
+            if (userTokens.size() > maxTokens) {
+                // Sort tokens by creation date (ascending) and delete the oldest
+                userTokens.sort(Comparator.comparing(RefreshToken::getCreatedAt));
+                int tokensToDelete = userTokens.size() - maxTokens;
+                for (int i = 0; i < tokensToDelete; i++) {
+                    refreshTokenRepository.delete(userTokens.get(i));
+                }
+                log.info("Cleaned up old refresh tokens for user: {}. Deleted {} tokens.", userEmail, tokensToDelete);
+            }
+        }
+    }
+
+    // Enhanced method with device info support
+    public RefreshToken createRefreshTokenWithDeviceInfo(String userEmail, String deviceInfo) {
+        if (userEmail == null || userEmail.trim().isEmpty()) {
+            throw new IllegalArgumentException("User email cannot be null or empty");
+        }
+
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new UserNotFoundException("User not found with email: " + userEmail));
+
+        // Security enhancement: Limit tokens per user (default max 5 devices)
+        cleanupOldTokensForUser(userEmail, 5);
+
+        RefreshToken refreshToken = new RefreshToken();
+        refreshToken.setUser(user);
+        refreshToken.setExpiryDate(Instant.now().plusSeconds(refreshTokenDurationMs));
+        refreshToken.setToken(UUID.randomUUID().toString());
+        refreshToken.setCreatedAt(Instant.now());
+        refreshToken.setDeviceInfo(deviceInfo); // Set device info
+
+        refreshToken = refreshTokenRepository.save(refreshToken);
+        log.info("Created refresh token for user: {} with device info: {}", userEmail, deviceInfo);
+        return refreshToken;
     }
 }

@@ -7,7 +7,9 @@ import com.anuj.QuickScribe.model.AuthProvider;
 import com.anuj.QuickScribe.model.User;
 import com.anuj.QuickScribe.repository.UserRepository;
 import com.anuj.QuickScribe.security.JwtTokenProvider;
+import com.anuj.QuickScribe.service.DeviceInfoService;
 import com.anuj.QuickScribe.service.RefreshTokenService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,9 +32,11 @@ public class AuthController {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider tokenProvider;
     private final RefreshTokenService refreshTokenService;
+    private final DeviceInfoService deviceInfoService;
 
     @PostMapping("/login")
-    public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest,
+                                             HttpServletRequest request) {
         try {
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
@@ -43,11 +47,17 @@ public class AuthController {
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
+            // Extract device info from request
+            String deviceInfo = deviceInfoService.extractDeviceInfo(request);
+
             String jwt = tokenProvider.generateToken(authentication);
-            var refreshToken = refreshTokenService.createRefreshToken(loginRequest.getEmail());
+            var refreshToken = refreshTokenService.createRefreshTokenWithDeviceInfo(loginRequest.getEmail(), deviceInfo);
 
             User user = userRepository.findByEmail(loginRequest.getEmail())
                     .orElseThrow(() -> new RuntimeException("User not found"));
+
+            // Log login with device info
+            log.info("User login successful: {} from device: {}", loginRequest.getEmail(), deviceInfo);
 
             return ResponseEntity.ok(AuthResponse.builder()
                     .accessToken(jwt)
@@ -64,7 +74,8 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<?> registerUser(@Valid @RequestBody RegisterRequest registerRequest) {
+    public ResponseEntity<?> registerUser(@Valid @RequestBody RegisterRequest registerRequest,
+                                         HttpServletRequest request) {
         try {
             if (userRepository.existsByEmail(registerRequest.getEmail())) {
                 return ResponseEntity.badRequest()
@@ -81,9 +92,15 @@ public class AuthController {
 
             User savedUser = userRepository.save(user);
 
-            // Generate JWT token
+            // Extract device info from request
+            String deviceInfo = deviceInfoService.extractDeviceInfo(request);
+
+            // Generate JWT token with device info
             String jwt = tokenProvider.generateTokenForUser(savedUser.getEmail());
-            var refreshToken = refreshTokenService.createRefreshToken(savedUser.getEmail());
+            var refreshToken = refreshTokenService.createRefreshTokenWithDeviceInfo(savedUser.getEmail(), deviceInfo);
+
+            // Log registration with device info
+            log.info("User registration successful: {} from device: {}", registerRequest.getEmail(), deviceInfo);
 
             return ResponseEntity.ok(AuthResponse.builder()
                     .accessToken(jwt)
