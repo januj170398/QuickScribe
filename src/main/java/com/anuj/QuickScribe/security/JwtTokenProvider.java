@@ -24,8 +24,8 @@ public class JwtTokenProvider {
     private final long jwtExpirationInMs;
     private final SecretKey signingKey;
 
-    public JwtTokenProvider(@Value("${jwt.secret}") String jwtSecret,
-                           @Value("${jwt.expiration.ms}") long jwtExpirationInMs) {
+    public JwtTokenProvider(@Value("${app.jwt.secret}") String jwtSecret,
+                           @Value("${app.jwt.expiration}") long jwtExpirationInMs) {
         if (!StringUtils.hasText(jwtSecret)) {
             throw new IllegalArgumentException("JWT secret cannot be null or empty. Set JWT_SECRET environment variable.");
         }

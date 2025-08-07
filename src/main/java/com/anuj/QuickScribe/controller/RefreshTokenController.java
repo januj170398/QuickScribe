@@ -5,10 +5,14 @@ import com.anuj.QuickScribe.model.RefreshToken;
 import com.anuj.QuickScribe.model.User;
 import com.anuj.QuickScribe.security.JwtTokenProvider;
 import com.anuj.QuickScribe.service.RefreshTokenService;
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -24,7 +28,7 @@ import java.util.Optional;
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 @Slf4j
-@Api(tags = "Refresh Token API", description = "Endpoints for refreshing and revoking tokens")
+@Tag(name = "Refresh Token API", description = "Endpoints for refreshing and revoking tokens")
 public class RefreshTokenController {
 
     private final RefreshTokenService refreshTokenService;
@@ -52,11 +56,11 @@ public class RefreshTokenController {
         }
     }
 
-    @ApiOperation(value = "Refresh JWT token", notes = "Generates a new access and refresh token using a valid refresh token.")
+    @Operation(summary = "Refresh JWT token", description = "Generates a new access and refresh token using a valid refresh token.")
     @ApiResponses({
-        @ApiResponse(code = 200, message = "Token refreshed successfully"),
-        @ApiResponse(code = 401, message = "Invalid or expired refresh token"),
-        @ApiResponse(code = 500, message = "Token refresh failed")
+        @ApiResponse(responseCode = "200", description = "Token refreshed successfully"),
+        @ApiResponse(responseCode = "401", description = "Invalid or expired refresh token"),
+        @ApiResponse(responseCode = "500", description = "Token refresh failed")
     })
     @PostMapping("/refresh")
     public ResponseEntity<AuthResponse> refreshToken(@Valid @RequestBody RefreshTokenRequest request,
@@ -113,10 +117,10 @@ public class RefreshTokenController {
         }
     }
 
-    @ApiOperation(value = "Revoke refresh token", notes = "Revokes a refresh token, making it unusable.")
+    @Operation(summary = "Revoke refresh token", description = "Revokes a refresh token, making it unusable.")
     @ApiResponses({
-        @ApiResponse(code = 200, message = "Token revoked successfully"),
-        @ApiResponse(code = 500, message = "Token revocation failed")
+        @ApiResponse(responseCode = "200", description = "Token revoked successfully"),
+        @ApiResponse(responseCode = "500", description = "Token revocation failed")
     })
     @PostMapping("/revoke")
     public ResponseEntity<AuthResponse> revokeToken(@Valid @RequestBody RefreshTokenRequest request,

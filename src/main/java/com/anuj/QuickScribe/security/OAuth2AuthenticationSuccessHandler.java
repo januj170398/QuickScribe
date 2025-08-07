@@ -5,6 +5,7 @@ import com.anuj.QuickScribe.model.User;
 import com.anuj.QuickScribe.repository.UserRepository;
 import com.anuj.QuickScribe.service.RefreshTokenService;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -55,12 +56,14 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
             String accessToken = tokenProvider.generateTokenForUser(user.getEmail());
             var refreshToken = refreshTokenService.createRefreshToken(user.getEmail());
 
-            // Get the first allowed origin for redirect
+            // Set tokens as HTTP-only cookies instead of URL parameters for security
+            setTokenCookies(response, accessToken, refreshToken.getToken());
+
+            // Get the first allowed origin for redirect - remove sensitive data from URL
             String redirectUrl = allowedOrigins.split(",")[0];
 
             return UriComponentsBuilder.fromUriString(redirectUrl + "/auth/oauth2/redirect")
-                    .queryParam("token", accessToken)
-                    .queryParam("refreshToken", refreshToken.getToken())
+                    .queryParam("success", "true")
                     .build().toUriString();
 
         } catch (Exception ex) {
@@ -70,6 +73,24 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
                     .queryParam("error", "authentication_failed")
                     .build().toUriString();
         }
+    }
+
+    private void setTokenCookies(HttpServletResponse response, String accessToken, String refreshToken) {
+        // Set access token cookie
+        Cookie accessTokenCookie = new Cookie("accessToken", accessToken);
+        accessTokenCookie.setHttpOnly(true);
+        accessTokenCookie.setSecure(false); // Set to true in production with HTTPS
+        accessTokenCookie.setPath("/");
+        accessTokenCookie.setMaxAge(24 * 60 * 60); // 24 hours
+        response.addCookie(accessTokenCookie);
+
+        // Set refresh token cookie
+        Cookie refreshTokenCookie = new Cookie("refreshToken", refreshToken);
+        refreshTokenCookie.setHttpOnly(true);
+        refreshTokenCookie.setSecure(false); // Set to true in production with HTTPS
+        refreshTokenCookie.setPath("/");
+        refreshTokenCookie.setMaxAge(7 * 24 * 60 * 60); // 7 days
+        response.addCookie(refreshTokenCookie);
     }
 
     private User processOAuth2User(OAuth2User oAuth2User) {

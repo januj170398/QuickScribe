@@ -10,10 +10,14 @@ import com.anuj.QuickScribe.model.User;
 import com.anuj.QuickScribe.repository.UserRepository;
 import com.anuj.QuickScribe.security.JwtTokenProvider;
 import com.anuj.QuickScribe.service.RefreshTokenService;
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -37,7 +41,7 @@ import java.util.Optional;
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 @Slf4j
-@Api(tags = "Authentication API", description = "Endpoints for user authentication and registration")
+@Tag(name = "Authentication API", description = "Endpoints for user authentication and registration")
 public class AuthController {
 
     private final AuthenticationManager authenticationManager;
@@ -71,11 +75,22 @@ public class AuthController {
         }
     }
 
-    @ApiOperation(value = "Register a new user", notes = "Creates a new user account and returns JWT tokens.")
+    @Operation(summary = "Register a new user",
+               description = "Creates a new user account with email and password, returns JWT tokens upon successful registration.",
+               requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                   description = "User registration details",
+                   required = true,
+                   content = @Content(schema = @Schema(implementation = RegisterRequest.class))
+               ))
     @ApiResponses({
-        @ApiResponse(code = 201, message = "Registration successful"),
-        @ApiResponse(code = 409, message = "Email already registered"),
-        @ApiResponse(code = 500, message = "Registration failed. Please try again.")
+        @ApiResponse(responseCode = "201", description = "Registration successful",
+                    content = @Content(schema = @Schema(implementation = AuthResponse.class))),
+        @ApiResponse(responseCode = "409", description = "Email already registered",
+                    content = @Content(schema = @Schema(implementation = AuthResponse.class))),
+        @ApiResponse(responseCode = "400", description = "Invalid input data",
+                    content = @Content(schema = @Schema(implementation = AuthResponse.class))),
+        @ApiResponse(responseCode = "500", description = "Registration failed. Please try again.",
+                    content = @Content(schema = @Schema(implementation = AuthResponse.class)))
     })
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request,
@@ -121,11 +136,22 @@ public class AuthController {
         }
     }
 
-    @ApiOperation(value = "Login user", notes = "Authenticates a user and returns JWT tokens.")
+    @Operation(summary = "Login user",
+               description = "Authenticates a user with email and password, returns JWT tokens upon successful authentication.",
+               requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                   description = "User login credentials",
+                   required = true,
+                   content = @Content(schema = @Schema(implementation = LoginRequest.class))
+               ))
     @ApiResponses({
-        @ApiResponse(code = 200, message = "Login successful"),
-        @ApiResponse(code = 401, message = "Invalid email or password"),
-        @ApiResponse(code = 500, message = "Login failed. Please try again.")
+        @ApiResponse(responseCode = "200", description = "Login successful",
+                    content = @Content(schema = @Schema(implementation = AuthResponse.class))),
+        @ApiResponse(responseCode = "401", description = "Invalid email or password",
+                    content = @Content(schema = @Schema(implementation = AuthResponse.class))),
+        @ApiResponse(responseCode = "400", description = "Invalid input data",
+                    content = @Content(schema = @Schema(implementation = AuthResponse.class))),
+        @ApiResponse(responseCode = "500", description = "Login failed. Please try again.",
+                    content = @Content(schema = @Schema(implementation = AuthResponse.class)))
     })
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request,
@@ -177,15 +203,24 @@ public class AuthController {
         }
     }
 
-    @ApiOperation(value = "Logout user", notes = "Logs out the user and revokes refresh tokens.")
+    @Operation(summary = "Logout user",
+               description = "Logs out the user and revokes all refresh tokens associated with the user.",
+               security = @SecurityRequirement(name = "bearerAuth"))
     @ApiResponses({
-        @ApiResponse(code = 200, message = "Logout successful"),
-        @ApiResponse(code = 400, message = "Invalid token"),
-        @ApiResponse(code = 500, message = "Logout failed")
+        @ApiResponse(responseCode = "200", description = "Logout successful",
+                    content = @Content(schema = @Schema(implementation = AuthResponse.class))),
+        @ApiResponse(responseCode = "400", description = "Invalid token",
+                    content = @Content(schema = @Schema(implementation = AuthResponse.class))),
+        @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing token",
+                    content = @Content(schema = @Schema(implementation = AuthResponse.class))),
+        @ApiResponse(responseCode = "500", description = "Logout failed",
+                    content = @Content(schema = @Schema(implementation = AuthResponse.class)))
     })
     @PostMapping("/logout")
-    public ResponseEntity<AuthResponse> logout(@RequestHeader("Authorization") String authHeader,
-                                             HttpServletRequest httpRequest) {
+    public ResponseEntity<AuthResponse> logout(
+            @Parameter(description = "Authorization header with Bearer token", required = true)
+            @RequestHeader("Authorization") String authHeader,
+            HttpServletRequest httpRequest) {
         try {
             String clientIp = getClientIpAddress(httpRequest);
 
@@ -208,11 +243,19 @@ public class AuthController {
         }
     }
 
-    @ApiOperation(value = "OAuth2 login success callback", notes = "Handles successful OAuth2 authentication.")
+    @Operation(summary = "OAuth2 login success callback",
+               description = "Handles successful OAuth2 authentication and returns JWT tokens.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "OAuth2 login successful",
+                    content = @Content(schema = @Schema(implementation = AuthResponse.class))),
+        @ApiResponse(responseCode = "500", description = "OAuth2 authentication processing failed",
+                    content = @Content(schema = @Schema(implementation = AuthResponse.class)))
+    })
     @GetMapping("/oauth2/success")
-    public ResponseEntity<AuthResponse> oauth2Success(@RequestParam String token,
-                                                    @RequestParam String refreshToken,
-                                                    HttpServletRequest httpRequest) {
+    public ResponseEntity<AuthResponse> oauth2Success(
+            @Parameter(description = "JWT access token", required = true) @RequestParam String token,
+            @Parameter(description = "Refresh token", required = true) @RequestParam String refreshToken,
+            HttpServletRequest httpRequest) {
         try {
             String clientIp = getClientIpAddress(httpRequest);
             String username = tokenProvider.getUsernameFromToken(token);
@@ -230,66 +273,22 @@ public class AuthController {
         }
     }
 
-    @ApiOperation(value = "OAuth2 login failure callback", notes = "Handles failed OAuth2 authentication.")
+    @Operation(summary = "OAuth2 login failure callback",
+               description = "Handles failed OAuth2 authentication.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "401", description = "OAuth2 authentication failed",
+                    content = @Content(schema = @Schema(implementation = AuthResponse.class)))
+    })
     @GetMapping("/oauth2/failure")
-    public ResponseEntity<AuthResponse> oauth2Failure(@RequestParam(required = false) String error,
-                                                    @RequestParam(required = false) String message,
-                                                    HttpServletRequest httpRequest) {
+    public ResponseEntity<AuthResponse> oauth2Failure(
+            @Parameter(description = "Error code") @RequestParam(required = false) String error,
+            @Parameter(description = "Error message") @RequestParam(required = false) String message,
+            HttpServletRequest httpRequest) {
         String clientIp = getClientIpAddress(httpRequest);
         log.error("OAuth2 authentication failed from IP: {} - Error: {}, Message: {}",
                  clientIp, error, message);
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(createErrorResponse("OAuth2 authentication failed: " + (message != null ? message : error)));
-    }
-
-    @ApiOperation(value = "Test Google OAuth2 user creation", notes = "Test endpoint to simulate Google OAuth2 user creation for development")
-    @PostMapping("/test/google-oauth2")
-    public ResponseEntity<AuthResponse> testGoogleOAuth2(@RequestBody Map<String, String> googleUserData,
-                                                        HttpServletRequest httpRequest) {
-        try {
-            String clientIp = getClientIpAddress(httpRequest);
-            log.info("Testing Google OAuth2 user creation from IP: {}", clientIp);
-
-            // Simulate Google user data
-            String email = googleUserData.get("email");
-            String name = googleUserData.get("name");
-            String googleId = googleUserData.get("sub");
-
-            if (email == null || email.isEmpty()) {
-                return ResponseEntity.badRequest()
-                        .body(createErrorResponse("Email is required for testing"));
-            }
-
-            // Check if user already exists
-            Optional<User> existingUser = userRepository.findByEmail(email);
-            User user;
-
-            if (existingUser.isPresent()) {
-                user = existingUser.get();
-                log.info("Existing Google user found: {}", email);
-            } else {
-                // Create new Google user
-                user = new User();
-                user.setEmail(email);
-                user.setName(name != null ? name : email.split("@")[0]);
-                user.setProvider(AuthProvider.GOOGLE);
-                user.setPassword(""); // No password for OAuth2 users
-                user.setEnabled(true);
-                user = userRepository.save(user);
-                log.info("New Google user created for testing: {}", email);
-            }
-
-            // Generate tokens
-            String accessToken = tokenProvider.generateTokenForUser(user.getEmail());
-            RefreshToken refreshToken = refreshTokenService.createRefreshToken(user.getEmail());
-
-            return ResponseEntity.ok(createAuthResponse(user, accessToken, refreshToken.getToken(), "Google OAuth2 test successful"));
-
-        } catch (Exception e) {
-            log.error("Google OAuth2 test failed: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(createErrorResponse("Google OAuth2 test failed"));
-        }
     }
 }
